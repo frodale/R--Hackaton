@@ -1,0 +1,242 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IScenarioRepository Repository
+@inject IAllocationEngine Engine
+
+<PageTitle>RØ Material Allocation</PageTitle>
+
+<header class="topbar">
+    <div class="brand">
+        <span class="logo">RØ</span>
+        <div>
+            <h1>Material Allocation Assistant</h1>
+            <p>Operation FULL FART · RØ Motion &amp; RØ Marine · Planning period: @scenario.Period</p>
+        </div>
+    </div>
+    <span class="badge-mock">Demo · mock data based on the case</span>
+</header>
+
+<main class="layout">
+    <aside class="panel controls">
+        <h2>Scenario</h2>
+
+        <div class="field">
+            <span class="label">Allocation strategy</span>
+            <div class="segmented" role="group" aria-label="Allocation strategy">
+                @foreach (var s in Enum.GetValues<AllocationStrategy>())
+                {
+                    <button type="button" class="@(s == strategy ? "active" : "")" @onclick="() => SetStrategy(s)">@Fmt.Name(s)</button>
+                }
+            </div>
+            <p class="hint">@Fmt.Description(strategy)</p>
+        </div>
+
+        <div class="field">
+            <label class="label" for="cut">Carbon fibre supply cut <strong class="value @(cut > 0 ? "risk-text" : "")">@cut %</strong></label>
+            <input id="cut" type="range" min="0" max="60" step="5" @bind="cut" @bind:event="oninput" @bind:after="Recalculate" />
+            <button type="button" class="btn btn-news" @onclick="BreakingNews">
+                <span aria-hidden="true">⚠</span> Breaking news: supplier cuts carbon fibre by 30 %
+            </button>
+        </div>
+
+        <div class="field">
+            <label class="label" for="reserve">Carbon fibre &amp; timber reserved for Marine <strong class="value">@reserve %</strong></label>
+            <input id="reserve" type="range" min="0" max="50" step="5" @bind="reserve" @bind:event="oninput" @bind:after="Recalculate" />
+            <p class="hint">Protects the craft business and the brand (Rø family priority). Unused reserve flows back to Motion.</p>
+        </div>
+
+        <button type="button" class="btn btn-ghost" @onclick="Reset">Reset scenario</button>
+
+        <div class="source">
+            <span class="label">Based on</span>
+            <p>R01 promises vs capacity · R02 material shortage · E-01 April/May/June conflict · E-02 supplier at red · B-04-01 one shared capacity picture · B-04-02 exceptions need approval</p>
+        </div>
+    </aside>
+
+    <section class="content">
+        <div class="kpis">
+            <div class="kpi">
+                <span class="kpi-label">Revenue deliverable in @scenario.Period</span>
+                <span class="kpi-value">@Fmt.Nok(result.Revenue)</span>
+                <span class="kpi-sub">@Fmt.Pct(Share) of the order book (@Fmt.Nok(result.OrderBook))</span>
+            </div>
+            <div class="kpi @(result.RevenueAtRisk > 0 ? "kpi-warn" : "kpi-ok")">
+                <span class="kpi-label">Revenue at risk</span>
+                <span class="kpi-value">@Fmt.Nok(result.RevenueAtRisk)</span>
+                <span class="kpi-sub">orders that can't be covered this period</span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-label">Orders fully served</span>
+                <span class="kpi-value">@result.FullyServed <span class="kpi-of">/ @result.Orders.Count</span></span>
+                <span class="kpi-sub">@(result.Orders.Count - result.FullyServed) customers need a revised date</span>
+            </div>
+            <div class="kpi @(SafetyGaps > 0 ? "kpi-risk" : "kpi-ok")">
+                <span class="kpi-label">Safety-critical gaps</span>
+                <span class="kpi-value">@SafetyGaps</span>
+                <span class="kpi-sub">@(SafetyGaps > 0 ? "rescue equipment is not covered" : "all safety equipment covered")</span>
+            </div>
+        </div>
+
+        <div class="row row-2-1">
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Material balance</h2>
+                    <ul class="legend">
+                        <li><span class="swatch fill-motion"></span>Motion</li>
+                        <li><span class="swatch fill-marine"></span>Marine</li>
+                        <li><span class="swatch swatch-line"></span>Available supply</li>
+                    </ul>
+                </div>
+                <MaterialBalanceChart Balances="result.Materials" />
+            </div>
+            <div class="panel">
+                <div class="panel-head"><h2>Order book</h2></div>
+                <RevenueDonut Motion="result.RevenueFor(BusinessArea.Motion)"
+                              Marine="result.RevenueFor(BusinessArea.Marine)"
+                              AtRisk="result.RevenueAtRisk" />
+            </div>
+        </div>
+
+        <div class="row row-1-1">
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Compare strategies</h2>
+                    <span class="muted small">Same supply, three ways to split it</span>
+                </div>
+                <StrategyComparison Outcomes="outcomes" Current="strategy" OnSelect="SetStrategy" />
+            </div>
+
+            <div class="panel">
+                <div class="panel-head"><h2>Why this allocation</h2></div>
+                <ul class="insights">
+                    @foreach (var insight in result.Insights)
+                    {
+                        <li class="insight @Fmt.Css(insight.Severity)">@insight.Text</li>
+                    }
+                </ul>
+
+                <div class="decision">
+                    @if (Recommended.Strategy != strategy)
+                    {
+                        <p>The assistant recommends <strong>@Fmt.Name(Recommended.Strategy)</strong>: the most revenue without leaving safety-critical orders uncovered.</p>
+                        @if (PriceOfRecommendation > 0)
+                        {
+                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this period, in exchange for covering rescue equipment and elite deadlines.</p>
+                        }
+                        <button type="button" class="btn btn-primary" @onclick="ApplyRecommended">Apply recommendation</button>
+                    }
+                    else if (!approvalSent)
+                    {
+                        <p>This is the recommended allocation. A person decides: shortfalls for customers need explicit approval (B-04-02).</p>
+                        @if (PriceOfRecommendation > 0)
+                        {
+                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this period, in exchange for covering rescue equipment and elite deadlines.</p>
+                        }
+                        <button type="button" class="btn btn-primary" @onclick="() => approvalSent = true">Send to Operations Director for approval</button>
+                    }
+                    else
+                    {
+                        <p class="sent"><span aria-hidden="true">✓</span> Sent to Maren Vik, Operations Director. Status: awaiting decision. Sales gets confirmed dates once it is approved.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Orders for @scenario.Period</h2>
+                <span class="muted small">What each customer gets under this allocation</span>
+            </div>
+            <div class="table-scroll">
+                <table class="orders">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Product</th>
+                            <th>Priority</th>
+                            <th class="num">Ordered</th>
+                            <th class="num">Allocated</th>
+                            <th>Fill</th>
+                            <th class="num">At risk</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var o in result.Orders.OrderBy(o => o.Product.Area).ThenBy(o => o.Order.Tier))
+                        {
+                            <tr>
+                                <td>
+                                    <span class="customer">@o.Order.Customer</span>
+                                    <span class="note">@o.Order.Note</span>
+                                </td>
+                                <td><span class="area-dot @Fmt.Css(o.Product.Area)"></span>@o.Product.Name</td>
+                                <td><span class="chip @Fmt.Css(o.Order.Tier)">@Fmt.Name(o.Order.Tier)</span></td>
+                                <td class="num">@Fmt.Num(o.Order.Quantity)</td>
+                                <td class="num">@Fmt.Num(o.AllocatedQuantity)</td>
+                                <td class="fill">
+                                    <span class="fill-bar"><span class="fill-bar-value @Fmt.Css(o.Status)" style="width:@Fmt.Svg(o.FillRate * 100)%"></span></span>
+                                    <span class="fill-pct">@Fmt.Pct(o.FillRate)</span>
+                                </td>
+                                <td class="num">@(o.RevenueAtRisk > 0 ? Fmt.Nok(o.RevenueAtRisk) : "–")</td>
+                                <td><span class="status @Fmt.Css(o.Status)"><span class="light"></span>@Fmt.Label(o.Status)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</main>
+
+@code {
+    private Scenario scenario = default!;
+    private AllocationResult result = default!;
+    private IReadOnlyList<StrategyOutcome> outcomes = [];
+
+    private AllocationStrategy strategy = AllocationStrategy.MaxRevenue;
+    private int cut;
+    private int reserve;
+    private bool approvalSent;
+
+    private double Share => result.OrderBook == 0 ? 0 : (double)(result.Revenue / result.OrderBook);
+    private int SafetyGaps => result.GapsInTier(CustomerTier.SafetyCritical);
+    private StrategyOutcome Recommended => outcomes.First(o => o.Recommended);
+    private decimal PriceOfRecommendation =>
+        outcomes.First(o => o.Strategy == AllocationStrategy.MaxRevenue).Result.Revenue - Recommended.Result.Revenue;
+
+    protected override void OnInitialized()
+    {
+        scenario = Repository.GetCurrent();
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        var settings = new AllocationSettings(strategy, cut, reserve);
+        result = Engine.Allocate(scenario, settings);
+        outcomes = Engine.Compare(scenario, settings);
+        approvalSent = false;
+    }
+
+    private void SetStrategy(AllocationStrategy s)
+    {
+        strategy = s;
+        Recalculate();
+    }
+
+    private void BreakingNews()
+    {
+        cut = 30;
+        Recalculate();
+    }
+
+    private void ApplyRecommended() => SetStrategy(Recommended.Strategy);
+
+    private void Reset()
+    {
+        strategy = AllocationStrategy.MaxRevenue;
+        cut = 0;
+        reserve = 0;
+        Recalculate();
+    }
+}

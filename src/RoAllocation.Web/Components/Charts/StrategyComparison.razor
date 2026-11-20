@@ -1,0 +1,36 @@
+@* Same supply, three strategies: revenue delivered and who is left without. Click to select. *@
+
+<div class="strategies">
+    @foreach (var o in Outcomes)
+    {
+        var r = o.Result;
+        var share = r.OrderBook == 0 ? 0 : (double)(r.Revenue / r.OrderBook);
+        var safety = r.GapsInTier(CustomerTier.SafetyCritical);
+        var elite = r.GapsInTier(CustomerTier.EliteDeadline);
+        <button type="button" class="strategy @(o.Strategy == Current ? "selected" : "")"
+                @onclick="() => OnSelect.InvokeAsync(o.Strategy)">
+            <span class="strategy-head">
+                <span class="strategy-name">@Fmt.Name(o.Strategy)</span>
+                @if (o.Recommended)
+                {
+                    <span class="tag tag-recommended">Recommended</span>
+                }
+            </span>
+            <span class="bar">
+                <span class="bar-fill fill-motion" style="width:@Fmt.Svg((double)(r.RevenueFor(BusinessArea.Motion) / Math.Max(1, r.OrderBook)) * 100)%"></span>
+                <span class="bar-fill fill-marine" style="width:@Fmt.Svg((double)(r.RevenueFor(BusinessArea.Marine) / Math.Max(1, r.OrderBook)) * 100)%"></span>
+            </span>
+            <span class="strategy-meta">
+                <strong>@Fmt.Nok(r.Revenue)</strong> <span class="muted">(@Fmt.Pct(share))</span>
+                <span class="chip @(safety == 0 ? "ok" : "risk")">@(safety == 0 ? "Safety covered" : $"{safety} safety gap")</span>
+                <span class="chip @(elite == 0 ? "ok" : "warn")">@(elite == 0 ? "Elite covered" : $"{elite} elite gap")</span>
+            </span>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<StrategyOutcome> Outcomes { get; set; } = [];
+    [Parameter] public AllocationStrategy Current { get; set; }
+    [Parameter] public EventCallback<AllocationStrategy> OnSelect { get; set; }
+}

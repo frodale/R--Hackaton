@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RoAllocation.Core/RoAllocation.Core.csproj" />
+    <Project Path="src/RoAllocation.Web/RoAllocation.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RoAllocation.Core.Tests/RoAllocation.Core.Tests.csproj" />
+  </Folder>
+</Solution>

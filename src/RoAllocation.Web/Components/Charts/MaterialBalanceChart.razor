@@ -1,0 +1,59 @@
+@* Per material: what Motion and Marine ordered, what they get, and where available supply ends. *@
+
+<svg class="chart" viewBox="0 0 @W @Fmt.Svg(Balances.Count * Row)" role="img"
+     aria-label="Ordered versus allocated material per business area, with available supply">
+    @for (var i = 0; i < Balances.Count; i++)
+    {
+        var b = Balances[i];
+        var max = (double)Math.Max(1, Math.Max(b.Demand, b.OriginalSupply));
+        var supplyX = X0 + Scale(b.Supply, max);
+        var labelRight = supplyX > X0 + BarW * 0.6;
+        <g transform="translate(0,@Fmt.Svg(i * Row))">
+            <text x="0" y="40" class="c-title">@b.Info.Name</text>
+            <text x="0" y="58" class="c-sub">@b.Info.Unit</text>
+
+            <text x="@Fmt.Svg(X0 - 10)" y="45" class="c-axis" text-anchor="end">Ordered</text>
+            <rect x="@Fmt.Svg(X0)" y="32" width="@Fmt.Svg(Scale(b.DemandMotion, max))" height="18" rx="3" class="fill-motion-soft" />
+            <rect x="@Fmt.Svg(X0 + Scale(b.DemandMotion, max))" y="32" width="@Fmt.Svg(Scale(b.DemandMarine, max))" height="18" rx="3" class="fill-marine-soft" />
+
+            <text x="@Fmt.Svg(X0 - 10)" y="71" class="c-axis" text-anchor="end">Allocated</text>
+            <rect x="@Fmt.Svg(X0)" y="58" width="@Fmt.Svg(Scale(b.AllocatedMotion, max))" height="18" rx="3" class="fill-motion" />
+            <rect x="@Fmt.Svg(X0 + Scale(b.AllocatedMotion, max))" y="58" width="@Fmt.Svg(Scale(b.AllocatedMarine, max))" height="18" rx="3" class="fill-marine" />
+
+            @if (b.OriginalSupply != b.Supply)
+            {
+                var wasX = X0 + Scale(b.OriginalSupply, max);
+                <g>
+                    <line x1="@Fmt.Svg(wasX)" x2="@Fmt.Svg(wasX)" y1="26" y2="82" class="supply-was" />
+                    <text x="@Fmt.Svg(wasX)" y="96" class="c-sub" text-anchor="middle">was @Fmt.Num(b.OriginalSupply)</text>
+                </g>
+            }
+
+            <line x1="@Fmt.Svg(supplyX)" x2="@Fmt.Svg(supplyX)" y1="24" y2="84" class="supply-line" />
+            <text x="@Fmt.Svg(labelRight ? supplyX - 6 : supplyX + 6)" y="20" class="c-supply"
+                  text-anchor="@(labelRight ? "end" : "start")">Available @Fmt.Num(b.Supply) @b.Info.Unit</text>
+
+            <text x="@W" y="45" class="c-value" text-anchor="end">@Fmt.Pct(b.Coverage) covered</text>
+            @if (b.Shortfall > 0)
+            {
+                <g>
+                    <text x="@W" y="71" class="c-short" text-anchor="end">short @Fmt.Num(b.Shortfall) @b.Info.Unit</text>
+                </g>
+            }
+            else
+            {
+                <g>
+                    <text x="@W" y="71" class="c-enough" text-anchor="end">enough</text>
+                </g>
+            }
+        </g>
+    }
+</svg>
+
+@code {
+    private const double W = 760, X0 = 190, BarW = 420, Row = 108;
+
+    [Parameter, EditorRequired] public IReadOnlyList<MaterialBalance> Balances { get; set; } = [];
+
+    private static double Scale(decimal value, double max) => Math.Max(0, (double)value / max * BarW);
+}

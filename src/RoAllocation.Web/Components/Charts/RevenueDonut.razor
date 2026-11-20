@@ -1,0 +1,46 @@
+@* Donut of the order book: delivered by Motion, delivered by Marine, and revenue at risk. *@
+
+<div class="donut-wrap">
+    <svg class="donut" viewBox="0 0 200 200" role="img"
+         aria-label="Order book split into delivered Motion, delivered Marine and at risk">
+        <circle cx="100" cy="100" r="@R" class="donut-track" />
+        @foreach (var seg in Segments())
+        {
+            <circle cx="100" cy="100" r="@R" class="@seg.Css"
+                    stroke-dasharray="@Fmt.Svg(seg.Length) @Fmt.Svg(Circumference - seg.Length)"
+                    stroke-dashoffset="@Fmt.Svg(-seg.Offset)"
+                    transform="rotate(-90 100 100)" />
+        }
+        <text x="100" y="98" text-anchor="middle" class="donut-big">@Fmt.Pct(DeliveredShare)</text>
+        <text x="100" y="122" text-anchor="middle" class="donut-small">deliverable</text>
+    </svg>
+    <ul class="legend legend-col">
+        <li><span class="swatch fill-motion"></span>Motion <strong>@Fmt.Nok(Motion)</strong></li>
+        <li><span class="swatch fill-marine"></span>Marine <strong>@Fmt.Nok(Marine)</strong></li>
+        <li><span class="swatch fill-risk"></span>At risk <strong>@Fmt.Nok(AtRisk)</strong></li>
+    </ul>
+</div>
+
+@code {
+    private const double R = 74;
+    private static readonly double Circumference = 2 * Math.PI * R;
+
+    [Parameter] public decimal Motion { get; set; }
+    [Parameter] public decimal Marine { get; set; }
+    [Parameter] public decimal AtRisk { get; set; }
+
+    private double Total => (double)(Motion + Marine + AtRisk);
+    private double DeliveredShare => Total == 0 ? 0 : (double)(Motion + Marine) / Total;
+
+    private IEnumerable<(string Css, double Length, double Offset)> Segments()
+    {
+        if (Total == 0) yield break;
+        double offset = 0;
+        foreach (var (css, value) in new[] { ("ring-motion", Motion), ("ring-marine", Marine), ("ring-risk", AtRisk) })
+        {
+            var length = (double)value / Total * Circumference;
+            if (length > 0) yield return (css, length, offset);
+            offset += length;
+        }
+    }
+}
