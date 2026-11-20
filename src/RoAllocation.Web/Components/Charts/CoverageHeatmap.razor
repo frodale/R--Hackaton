@@ -1,0 +1,62 @@
+@* Month-by-month health: material coverage, safety gaps and backlog. Click a month to open it. *@
+
+<div class="table-scroll">
+    <table class="heatmap">
+        <thead>
+            <tr>
+                <th></th>
+                @for (var i = 0; i < Months.Count; i++)
+                {
+                    var index = i;
+                    <th class="@(i == Selected ? "col-selected" : "")">
+                        <button type="button" @onclick="() => OnSelect.InvokeAsync(index)">
+                            @Months[i].ShortLabel<span class="yr">@(i == 0 || Months[i].Month.Month == 1 ? $" {Months[i].Month.Year % 100:00}" : "")</span>
+                        </button>
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var material in Months.FirstOrDefault()?.Result.Materials.Select(b => b.Info) ?? [])
+            {
+                <tr>
+                    <th scope="row">@material.Name <span class="muted">coverage</span></th>
+                    @for (var i = 0; i < Months.Count; i++)
+                    {
+                        var b = Months[i].Result.Materials.Single(x => x.Info.Material == material.Material);
+                        <td class="@CoverageCss(b.Coverage) @(i == Selected ? "col-selected" : "")"
+                            title="@Months[i].Label: @Fmt.Num(b.Supply) of @Fmt.Num(b.Demand) @material.Unit">@Fmt.Pct(b.Coverage)</td>
+                    }
+                </tr>
+            }
+            <tr>
+                <th scope="row">Safety-critical gaps</th>
+                @for (var i = 0; i < Months.Count; i++)
+                {
+                    var gaps = Months[i].Result.GapsInTier(CustomerTier.SafetyCritical);
+                    <td class="@(gaps > 0 ? "cov-risk" : "cov-ok") @(i == Selected ? "col-selected" : "")">@(gaps > 0 ? gaps.ToString() : "✓")</td>
+                }
+            </tr>
+            <tr>
+                <th scope="row">Backlog at month end <span class="muted">NOK M</span></th>
+                @for (var i = 0; i < Months.Count; i++)
+                {
+                    var backlog = Months[i].CarriedRevenue;
+                    <td class="@BacklogCss(backlog) @(i == Selected ? "col-selected" : "")">@Fmt.Svg(Math.Round((double)backlog / 1_000_000, 1))</td>
+                }
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MonthForecast> Months { get; set; } = [];
+    [Parameter] public int Selected { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    private static string CoverageCss(double coverage) =>
+        coverage >= 0.95 ? "cov-ok" : coverage >= 0.7 ? "cov-warn" : "cov-risk";
+
+    private static string BacklogCss(decimal backlog) =>
+        backlog < 10_000_000m ? "cov-ok" : backlog < 30_000_000m ? "cov-warn" : "cov-risk";
+}

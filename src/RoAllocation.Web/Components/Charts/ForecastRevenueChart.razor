@@ -1,0 +1,89 @@
+@* Monthly revenue: delivered (Motion, Marine), pushed to backlog, lost to cancellations, and new orders as a line. *@
+
+<svg class="chart forecast-chart" viewBox="0 0 @W @H" role="img"
+     aria-label="Monthly revenue forecast: delivered, carried to backlog and lost to cancellations">
+    @foreach (var tick in Ticks())
+    {
+        <g>
+            <line x1="@Left" x2="@(W - Right)" y1="@Fmt.Svg(Y(tick))" y2="@Fmt.Svg(Y(tick))" class="grid" />
+            <text x="@(Left - 8)" y="@Fmt.Svg(Y(tick) + 4)" class="c-axis" text-anchor="end">@Fmt.Svg((double)tick / 1_000_000)</text>
+        </g>
+    }
+    <text x="@(Left - 8)" y="12" class="c-sub" text-anchor="end">NOK M</text>
+
+    @for (var i = 0; i < Months.Count; i++)
+    {
+        var index = i;
+        var m = Months[i];
+        var x = SlotX(i);
+        var bx = x + (Slot - BarW) / 2;
+        decimal motion = m.Result.RevenueFor(BusinessArea.Motion), marine = m.Result.RevenueFor(BusinessArea.Marine);
+        decimal y0 = 0;
+        <g class="slot @(i == Selected ? "slot-selected" : "")" @onclick="() => OnSelect.InvokeAsync(index)">
+            <rect x="@Fmt.Svg(x)" y="@Top" width="@Fmt.Svg(Slot)" height="@Fmt.Svg(PlotH)" class="slot-band" />
+            @foreach (var (value, css) in new[] { (motion, "fill-motion"), (marine, "fill-marine"), (m.CarriedRevenue, "fill-backlog"), (m.CancelledRevenue, "fill-lost") })
+            {
+                var top = Y(y0 + value);
+                var height = Y(y0) - top;
+                y0 += value;
+                <rect x="@Fmt.Svg(bx)" y="@Fmt.Svg(top)" width="@Fmt.Svg(BarW)" height="@Fmt.Svg(Math.Max(0, height))" class="@css" />
+            }
+            <text x="@Fmt.Svg(x + Slot / 2)" y="@(H - 26)" class="c-axis" text-anchor="middle">@m.ShortLabel</text>
+            @if (i == 0 || m.Month.Month == 1)
+            {
+                <g><text x="@Fmt.Svg(x + Slot / 2)" y="@(H - 10)" class="c-sub" text-anchor="middle">@m.Month.Year</text></g>
+            }
+            <title>@m.Label: delivered @Fmt.Nok(motion + marine), backlog @Fmt.Nok(m.CarriedRevenue), lost @Fmt.Nok(m.CancelledRevenue), new orders @Fmt.Nok(m.NewDemandRevenue)</title>
+        </g>
+    }
+
+    <polyline points="@NewDemandPoints()" class="demand-line" />
+    @for (var i = 0; i < Months.Count; i++)
+    {
+        <circle cx="@Fmt.Svg(SlotX(i) + Slot / 2)" cy="@Fmt.Svg(Y(Months[i].NewDemandRevenue))" r="3.5" class="demand-dot" />
+    }
+
+    @foreach (var e in Events)
+    {
+        <g>
+            <circle cx="@Fmt.Svg(SlotX(e.MonthIndex) + Slot / 2)" cy="@(Top - 10)" r="9" class="event-dot" />
+            <text x="@Fmt.Svg(SlotX(e.MonthIndex) + Slot / 2)" y="@(Top - 6)" class="event-num" text-anchor="middle">@(Events.ToList().IndexOf(e) + 1)</text>
+            <title>@e.Text</title>
+        </g>
+    }
+</svg>
+
+@code {
+    private const double W = 980, H = 330, Left = 52, Right = 8, Top = 34, Bottom = 46;
+    private double PlotH => H - Top - Bottom;
+    private double Slot => (W - Left - Right) / Math.Max(1, Months.Count);
+    private double BarW => Slot * 0.6;
+
+    [Parameter, EditorRequired] public IReadOnlyList<MonthForecast> Months { get; set; } = [];
+    [Parameter] public IReadOnlyList<PlanEvent> Events { get; set; } = [];
+    [Parameter] public int Selected { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    private double SlotX(int i) => Left + i * Slot;
+
+    private decimal Max => NiceCeiling(Months.Count == 0 ? 1 : Months.Max(m =>
+        Math.Max(m.Result.Revenue + m.CarriedRevenue + m.CancelledRevenue, m.NewDemandRevenue)));
+
+    private double Y(decimal value) => Top + PlotH - (double)(value / Max) * PlotH;
+
+    private IEnumerable<decimal> Ticks()
+    {
+        var step = Max / 5;
+        for (var t = 0m; t <= Max; t += step) yield return t;
+    }
+
+    private string NewDemandPoints() => string.Join(" ",
+        Months.Select((m, i) => $"{Fmt.Svg(SlotX(i) + Slot / 2)},{Fmt.Svg(Y(m.NewDemandRevenue))}"));
+
+    private static decimal NiceCeiling(decimal value)
+    {
+        const decimal unit = 10_000_000m; // round up to the next NOK 10 M, in five even steps
+        var steps = Math.Ceiling(value / unit / 5) * 5;
+        return Math.Max(unit * 5, steps * unit);
+    }
+}

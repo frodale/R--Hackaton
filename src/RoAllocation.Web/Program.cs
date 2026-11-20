@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Demo: in-memory mock data and a rule-based engine. Swap the repository for real storage later.
 builder.Services.AddSingleton<IScenarioRepository, InMemoryScenarioRepository>();
 builder.Services.AddSingleton<IAllocationEngine, AllocationEngine>();
+builder.Services.AddSingleton<IForecastEngine, ForecastEngine>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

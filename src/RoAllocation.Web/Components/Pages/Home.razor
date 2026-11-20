@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject IScenarioRepository Repository
 @inject IAllocationEngine Engine
+@inject IForecastEngine ForecastEngine
 
 <PageTitle>RØ Material Allocation</PageTitle>
 
@@ -10,7 +11,7 @@
         <span class="logo">RØ</span>
         <div>
             <h1>Material Allocation Assistant</h1>
-            <p>Operation FULL FART · RØ Motion &amp; RØ Marine · Planning period: @scenario.Period</p>
+            <p>Operation FULL FART · RØ Motion &amp; RØ Marine · Forecast @forecast.Months[0].Label – @forecast.Months[^1].Label</p>
         </div>
     </div>
     <span class="badge-mock">Demo · mock data based on the case</span>
@@ -37,6 +38,7 @@
             <button type="button" class="btn btn-news" @onclick="BreakingNews">
                 <span aria-hidden="true">⚠</span> Breaking news: supplier cuts carbon fibre by 30 %
             </button>
+            <p class="hint">Applies to every month on top of the supply plan.</p>
         </div>
 
         <div class="field">
@@ -49,21 +51,100 @@
 
         <div class="source">
             <span class="label">Based on</span>
-            <p>R01 promises vs capacity · R02 material shortage · E-01 April/May/June conflict · E-02 supplier at red · B-04-01 one shared capacity picture · B-04-02 exceptions need approval</p>
+            <p>R01 promises vs capacity · R02 material shortage · E-01 April/May/June conflict · E-02 supplier at red · P03 alternative suppliers · C12 the boom won't last · B-04-01 one shared capacity picture · B-04-02 exceptions need approval</p>
         </div>
     </aside>
 
     <section class="content">
+        @* ---------- Forecast ---------- *@
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Forecast @forecast.Months[0].Label – @forecast.Months[^1].Label</h2>
+                <ul class="legend">
+                    <li><span class="swatch fill-motion"></span>Motion delivered</li>
+                    <li><span class="swatch fill-marine"></span>Marine delivered</li>
+                    <li><span class="swatch fill-backlog"></span>Pushed to backlog</li>
+                    <li><span class="swatch fill-lost"></span>Lost (cancelled)</li>
+                    <li><span class="swatch swatch-demand"></span>New orders</li>
+                </ul>
+            </div>
+            <p class="headline">
+                With <strong>@Fmt.Name(strategy)</strong>, RØ delivers <strong>@Fmt.Nok(forecast.Revenue)</strong> over 13 months
+                and loses <strong class="risk-text">@Fmt.Nok(forecast.Cancelled)</strong> to cancelled orders.
+                The backlog peaks at <strong>@Fmt.Nok(PeakMonth.CarriedRevenue)</strong> in @PeakMonth.Label.
+                @if (forecast.MonthsWithSafetyGaps > 0)
+                {
+                    <span class="risk-text">Rescue equipment is short in @forecast.MonthsWithSafetyGaps of 13 months.</span>
+                }
+                else
+                {
+                    <span class="ok-text">Rescue equipment is covered every month.</span>
+                }
+            </p>
+            <ForecastRevenueChart Months="forecast.Months" Events="forecast.Events" Selected="selectedMonth" OnSelect="SelectMonth" />
+            <ol class="events">
+                @foreach (var e in forecast.Events)
+                {
+                    <li><button type="button" @onclick="() => SelectMonth(e.MonthIndex)"><strong>@forecast.Months[e.MonthIndex].Label</strong> @e.Text</button></li>
+                }
+            </ol>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Month by month</h2>
+                <span class="muted small">Demand includes backlog carried from earlier months. Click a month for details.</span>
+            </div>
+            <CoverageHeatmap Months="forecast.Months" Selected="selectedMonth" OnSelect="SelectMonth" />
+        </div>
+
+        <div>
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Strategies over 13 months</h2>
+                    <span class="muted small">Same supply plan, same scenario settings. Click to switch.</span>
+                </div>
+                <div class="year-compare">
+                    @foreach (var f in strategyForecasts)
+                    {
+                        var s = f.Settings.Strategy;
+                        <button type="button" class="year-row @(s == strategy ? "selected" : "")" @onclick="() => SetStrategy(s)">
+                            <span class="strategy-name">@Fmt.Name(s)</span>
+                            <span class="year-figures">
+                                <span><small>Delivered</small><strong>@Fmt.Nok(f.Revenue)</strong></span>
+                                <span><small>Lost</small><strong class="risk-text">@Fmt.Nok(f.Cancelled)</strong></span>
+                                <span><small>Backlog Dec 27</small><strong>@Fmt.Nok(f.EndBacklog)</strong></span>
+                            </span>
+                            <span class="chip @(f.MonthsWithSafetyGaps == 0 ? "ok" : "risk")">
+                                @(f.MonthsWithSafetyGaps == 0 ? "Safety covered all year" : $"Safety short {f.MonthsWithSafetyGaps} months")
+                            </span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Selected month ---------- *@
+        <div class="month-head">
+            <button type="button" class="btn btn-ghost" disabled="@(selectedMonth == 0)" @onclick="() => SelectMonth(selectedMonth - 1)" aria-label="Previous month">‹</button>
+            <h2>@Month.Label in detail</h2>
+            <button type="button" class="btn btn-ghost" disabled="@(selectedMonth == forecast.Months.Count - 1)" @onclick="() => SelectMonth(selectedMonth + 1)" aria-label="Next month">›</button>
+            @if (Month.BacklogInRevenue > 0)
+            {
+                <span class="muted small">Starts with @Fmt.Nok(Month.BacklogInRevenue) of backlog from earlier months</span>
+            }
+        </div>
+
         <div class="kpis">
             <div class="kpi">
-                <span class="kpi-label">Revenue deliverable in @scenario.Period</span>
+                <span class="kpi-label">Revenue deliverable in @Month.ShortLabel</span>
                 <span class="kpi-value">@Fmt.Nok(result.Revenue)</span>
-                <span class="kpi-sub">@Fmt.Pct(Share) of the order book (@Fmt.Nok(result.OrderBook))</span>
+                <span class="kpi-sub">@Fmt.Pct(Share) of orders incl. backlog (@Fmt.Nok(result.OrderBook))</span>
             </div>
             <div class="kpi @(result.RevenueAtRisk > 0 ? "kpi-warn" : "kpi-ok")">
                 <span class="kpi-label">Revenue at risk</span>
                 <span class="kpi-value">@Fmt.Nok(result.RevenueAtRisk)</span>
-                <span class="kpi-sub">orders that can't be covered this period</span>
+                <span class="kpi-sub">@Fmt.Nok(Month.CarriedRevenue) to backlog · @Fmt.Nok(Month.CancelledRevenue) lost</span>
             </div>
             <div class="kpi">
                 <span class="kpi-label">Orders fully served</span>
@@ -101,7 +182,7 @@
             <div class="panel">
                 <div class="panel-head">
                     <h2>Compare strategies</h2>
-                    <span class="muted small">Same supply, three ways to split it</span>
+                    <span class="muted small">@Month.Label only, same supply</span>
                 </div>
                 <StrategyComparison Outcomes="outcomes" Current="strategy" OnSelect="SetStrategy" />
             </div>
@@ -118,10 +199,10 @@
                 <div class="decision">
                     @if (Recommended.Strategy != strategy)
                     {
-                        <p>The assistant recommends <strong>@Fmt.Name(Recommended.Strategy)</strong>: the most revenue without leaving safety-critical orders uncovered.</p>
+                        <p>The assistant recommends <strong>@Fmt.Name(Recommended.Strategy)</strong> for @Month.Label: the most revenue without leaving safety-critical orders uncovered.</p>
                         @if (PriceOfRecommendation > 0)
                         {
-                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this period, in exchange for covering rescue equipment and elite deadlines.</p>
+                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this month, in exchange for covering rescue equipment and elite deadlines.</p>
                         }
                         <button type="button" class="btn btn-primary" @onclick="ApplyRecommended">Apply recommendation</button>
                     }
@@ -130,7 +211,7 @@
                         <p>This is the recommended allocation. A person decides: shortfalls for customers need explicit approval (B-04-02).</p>
                         @if (PriceOfRecommendation > 0)
                         {
-                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this period, in exchange for covering rescue equipment and elite deadlines.</p>
+                            <p class="muted">Trade-off: @Fmt.Nok(PriceOfRecommendation) less revenue than <em>Max revenue</em> this month, in exchange for covering rescue equipment and elite deadlines.</p>
                         }
                         <button type="button" class="btn btn-primary" @onclick="() => approvalSent = true">Send to Operations Director for approval</button>
                     }
@@ -144,7 +225,7 @@
 
         <div class="panel">
             <div class="panel-head">
-                <h2>Orders for @scenario.Period</h2>
+                <h2>Orders for @Month.Label</h2>
                 <span class="muted small">What each customer gets under this allocation</span>
             </div>
             <div class="table-scroll">
@@ -189,15 +270,21 @@
 </main>
 
 @code {
-    private Scenario scenario = default!;
+    private Scenario baseline = default!;
+    private ForecastPlan plan = default!;
+    private IReadOnlyList<Forecast> strategyForecasts = [];
+    private Forecast forecast = default!;
     private AllocationResult result = default!;
     private IReadOnlyList<StrategyOutcome> outcomes = [];
 
     private AllocationStrategy strategy = AllocationStrategy.MaxRevenue;
     private int cut;
     private int reserve;
+    private int selectedMonth;
     private bool approvalSent;
 
+    private MonthForecast Month => forecast.Months[selectedMonth];
+    private MonthForecast PeakMonth => forecast.Months.MaxBy(m => m.CarriedRevenue)!;
     private double Share => result.OrderBook == 0 ? 0 : (double)(result.Revenue / result.OrderBook);
     private int SafetyGaps => result.GapsInTier(CustomerTier.SafetyCritical);
     private StrategyOutcome Recommended => outcomes.First(o => o.Recommended);
@@ -206,16 +293,32 @@
 
     protected override void OnInitialized()
     {
-        scenario = Repository.GetCurrent();
+        baseline = Repository.GetCurrent();
+        plan = Repository.GetForecastPlan();
         Recalculate();
     }
 
     private void Recalculate()
     {
         var settings = new AllocationSettings(strategy, cut, reserve);
-        result = Engine.Allocate(scenario, settings);
-        outcomes = Engine.Compare(scenario, settings);
+        strategyForecasts = Enum.GetValues<AllocationStrategy>()
+            .Select(s => ForecastEngine.Run(baseline, plan, settings with { Strategy = s }))
+            .ToList();
+        forecast = strategyForecasts.First(f => f.Settings.Strategy == strategy);
+        ShowMonth();
+    }
+
+    private void ShowMonth()
+    {
+        result = Month.Result;
+        outcomes = Engine.Compare(Month.Scenario, forecast.Settings);
         approvalSent = false;
+    }
+
+    private void SelectMonth(int index)
+    {
+        selectedMonth = Math.Clamp(index, 0, forecast.Months.Count - 1);
+        ShowMonth();
     }
 
     private void SetStrategy(AllocationStrategy s)
@@ -237,6 +340,7 @@
         strategy = AllocationStrategy.MaxRevenue;
         cut = 0;
         reserve = 0;
+        selectedMonth = 0;
         Recalculate();
     }
 }

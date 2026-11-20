@@ -213,6 +213,64 @@ input[type=range] { width: 100%; accent-color: var(--motion); }
 .status.risk { color: var(--risk); }
 .status.risk .light { background: var(--risk); box-shadow: 0 0 0 4px var(--risk-bg); }
 
+/* Forecast */
+.headline { margin: 0 0 12px; line-height: 1.55; max-width: 90ch; }
+.ok-text { color: var(--ok); }
+.fill-backlog { fill: var(--warn); background: var(--warn); }
+.fill-lost { fill: var(--risk); background: var(--risk); }
+.swatch-demand { width: 16px; height: 3px; background: var(--ink); border-radius: 2px; }
+.forecast-chart .grid { stroke: var(--line); stroke-width: 1; }
+.forecast-chart .slot { cursor: pointer; }
+.forecast-chart .slot-band { fill: transparent; }
+.forecast-chart .slot:hover .slot-band { fill: var(--bg); }
+.forecast-chart .slot-selected .slot-band { fill: var(--info-bg); }
+.forecast-chart .slot-selected text { font-weight: 700; fill: var(--ink); }
+.demand-line { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.demand-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.event-dot { fill: var(--navy); }
+.event-num { font-size: 11px; font-weight: 700; fill: #fff; }
+.events { margin: 10px 0 0; padding: 0 0 0 0; list-style: none; counter-reset: ev; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; }
+.events li { counter-increment: ev; display: flex; align-items: baseline; gap: 6px; }
+.events li::before {
+    content: counter(ev); flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--navy); color: #fff;
+    font-size: 11px; font-weight: 700; display: inline-grid; place-items: center;
+}
+.events button { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.events button:hover strong { text-decoration: underline; }
+.events strong { margin-right: 4px; }
+
+.heatmap { border-collapse: separate; border-spacing: 3px; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.heatmap th { font-weight: 600; text-align: left; white-space: nowrap; padding: 4px 8px 4px 0; }
+.heatmap th .muted { font-weight: 400; }
+.heatmap thead th { text-align: center; padding: 0; }
+.heatmap thead button { font: inherit; font-weight: 600; color: var(--muted); background: none; border: 0; border-radius: 5px; padding: 4px 6px; cursor: pointer; width: 100%; }
+.heatmap thead th.col-selected button { background: var(--active); color: #fff; }
+.heatmap .yr { font-weight: 400; }
+.heatmap td { text-align: center; padding: 6px 4px; border-radius: 5px; min-width: 40px; }
+.heatmap td.col-selected { outline: 2px solid var(--active); outline-offset: -2px; }
+.cov-ok { background: var(--ok-bg); color: var(--ok); }
+.cov-warn { background: var(--warn-bg); color: var(--warn); }
+.cov-risk { background: var(--risk-bg); color: var(--risk); font-weight: 600; }
+
+.year-compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .year-compare { grid-template-columns: minmax(0, 1fr); } }
+.year-figures strong { white-space: nowrap; }
+.year-row {
+    display: flex; flex-direction: column; gap: 8px; text-align: left; font: inherit; color: var(--ink);
+    background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; cursor: pointer;
+}
+.year-row:hover { border-color: var(--motion); }
+.year-row.selected { border: 2px solid var(--motion); padding: 11px 13px; }
+.year-row .chip { align-self: flex-start; }
+.year-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-variant-numeric: tabular-nums; }
+.year-figures span { display: flex; flex-direction: column; }
+.year-figures small { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.month-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.month-head h2 { font-size: 1.35rem; }
+.month-head .btn { padding: 4px 12px; font-size: 1.1rem; line-height: 1; }
+.month-head .btn:disabled { opacity: 0.35; cursor: default; }
+
 @media (max-width: 1200px) {
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .row-2-1, .row-1-1 { grid-template-columns: minmax(0, 1fr); }

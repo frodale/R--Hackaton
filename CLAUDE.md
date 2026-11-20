@@ -63,9 +63,24 @@ checker below is the follow-up. Interfaces and storage are deliberately simple a
   and a % of carbon fibre/timber reserved for Marine.
 - Recommendation rule: fewest safety-critical gaps, then fewest elite gaps, then highest revenue. The
   page shows the trade-off in NOK versus Max revenue, and a person approves (B-04-02).
-- Demo story with default data: Max revenue = NOK 36.1 M but rescue oars and the national team come up
-  short; Critical customers first = NOK 30.5 M with all safety/elite orders covered (NOK 5.6 M trade-off).
-- Mock data (prices, bills of material, orders, supply) is our assumption, inspired by E-01/E-02.
+- **Forecast Dec 2026 – Dec 2027** (`Forecast.cs`, `ForecastEngine` behind `IForecastEngine`): runs the
+  allocation month by month. The baseline scenario is one average month; `ForecastPlan` (from the
+  repository) holds monthly demand factors per order line, a monthly supply plan per material,
+  cancellation rates per customer tier and timeline events. Unfilled quantity carries over as backlog;
+  each month part of it is cancelled (safety/elite 0 %, strategic 15 %, standard 30 %).
+  Assumed patterns: rowing boom grows to summer 2027 then fades (C12), leisure season peaks Apr–Jul,
+  national team orders before the championships (Apr–May), 17 May ceremonial peak; alternative carbon
+  fibre supplier from Apr 2027 (+1,000 kg, P03/A-28), second electronics supplier from May (+500 kits),
+  more carbon fibre from Aug (+500 kg).
+- The page: forecast chart (delivered Motion/Marine, pushed to backlog, lost, new-orders line, numbered
+  events), month-by-month heatmap (coverage per material, safety gaps, backlog), the three strategies
+  compared over 13 months, then the selected month in detail (the original dashboard). Clicking a month
+  in the chart or heatmap selects it.
+- Forecast story with default settings: Max revenue NOK 569.8 M delivered, NOK 58.6 M lost, rescue
+  equipment short in 9 of 13 months; Critical customers first NOK 511.9 M, NOK 120.9 M lost, safety
+  covered all year. Backlog peaks in Jul 2027; shortages last until autumn even with the new suppliers.
+- Mock data (prices, bills of material, orders, supply, forecast patterns) is our assumption, inspired
+  by E-01/E-02.
 - Screenshots for checking layout: headless Chrome works
   (`chrome.exe --headless=new --screenshot=... http://localhost:5049/`); headless Edge fails here.
 

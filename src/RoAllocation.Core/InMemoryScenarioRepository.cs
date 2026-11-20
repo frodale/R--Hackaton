@@ -2,7 +2,11 @@ namespace RoAllocation.Core;
 
 public interface IScenarioRepository
 {
+    /// <summary>Baseline: one average month of orders and supply.</summary>
     Scenario GetCurrent();
+
+    /// <summary>How demand and supply develop month by month from the baseline.</summary>
+    ForecastPlan GetForecastPlan();
 }
 
 /// <summary>
@@ -12,8 +16,65 @@ public interface IScenarioRepository
 public sealed class InMemoryScenarioRepository : IScenarioRepository
 {
     private static readonly Scenario Current = Build();
+    private static readonly ForecastPlan Plan = BuildPlan();
 
     public Scenario GetCurrent() => Current;
+
+    public ForecastPlan GetForecastPlan() => Plan;
+
+    /// <summary>
+    /// December 2026 to December 2027. All patterns are assumptions:
+    /// the rowing boom keeps growing into summer 2027 and then fades (C12), the leisure rowing season peaks
+    /// in spring and summer, the national team orders before the championships, and alternative suppliers
+    /// for carbon fibre (P03, A-28) and electronics come online during 2027.
+    /// </summary>
+    private static ForecastPlan BuildPlan()
+    {
+        const int months = 13; // Dec 2026 .. Dec 2027
+
+        //                         Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec
+        decimal[] boom =        [ 1.00m, 1.20m, 1.12m, 1.19m, 1.26m, 1.34m, 1.42m, 1.42m, 1.40m, 1.33m, 1.26m, 1.20m, 1.25m ];
+        decimal[] leisure =     [ 0.50m, 0.50m, 0.70m, 1.00m, 1.30m, 1.50m, 1.40m, 1.20m, 1.00m, 0.80m, 0.60m, 0.50m, 0.50m ];
+        decimal[] elite =       [ 0.40m, 0.50m, 0.80m, 1.20m, 1.50m, 1.50m, 1.00m, 0.60m, 0.50m, 0.40m, 0.40m, 0.40m, 0.40m ];
+        decimal[] steady =      [ 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m, 1.00m ];
+        decimal[] ceremonial =  [ 0.50m, 0.30m, 0.50m, 1.00m, 1.50m, 2.50m, 1.00m, 0.50m, 0.50m, 0.50m, 0.50m, 0.50m, 0.80m ];
+
+        DemandProfile[] demand =
+        [
+            new("M-101", boom), new("M-102", boom), new("M-103", boom), new("M-104", boom), new("M-105", boom),
+            new("R-201", steady),
+            new("R-202", elite),
+            new("R-203", leisure), new("R-204", leisure), new("R-206", leisure),
+            new("R-205", ceremonial),
+        ];
+
+        var supply = new Dictionary<Material, IReadOnlyList<decimal>>
+        {
+            //                         Dec    Jan    Feb    Mar    Apr    May    Jun    Jul    Aug    Sep    Oct    Nov    Dec
+            [Material.CarbonFibre] = [ 3000m, 3000m, 3000m, 3000m, 4000m, 4000m, 4000m, 4000m, 4500m, 4500m, 4500m, 4500m, 4500m ],
+            [Material.Electronics] = [ 1400m, 1400m, 1400m, 1400m, 1400m, 1900m, 1900m, 1900m, 1900m, 1900m, 1900m, 1900m, 1900m ],
+            [Material.Timber] =      [   50m,   50m,   55m,   55m,   60m,   60m,   60m,   60m,   60m,   55m,   55m,   50m,   50m ],
+        };
+
+        var cancellation = new Dictionary<CustomerTier, decimal>
+        {
+            [CustomerTier.SafetyCritical] = 0m,          // they wait: no alternative supplier
+            [CustomerTier.EliteDeadline] = 0m,           // they wait, but miss the event
+            [CustomerTier.StrategicDistributor] = 0.15m, // some switch to competitors (problem #3)
+            [CustomerTier.Standard] = 0.30m,             // consumers and clubs give up quickly
+        };
+
+        PlanEvent[] events =
+        [
+            new(1, "New-year fitness peak"),
+            new(4, "Alternative carbon fibre supplier qualified (+1,000 kg, P03)"),
+            new(5, "Second electronics supplier (+500 kits) · 17 May ceremonial peak · Championships"),
+            new(8, "Carbon fibre volume ramp-up (+500 kg)"),
+            new(9, "Rowing boom starts to fade (C12)"),
+        ];
+
+        return new ForecastPlan(new DateOnly(2026, 12, 1), months, demand, supply, cancellation, events);
+    }
 
     private static Scenario Build()
     {
@@ -61,7 +122,7 @@ public sealed class InMemoryScenarioRepository : IScenarioRepository
             [Material.Timber] = 55m,
         };
 
-        return new Scenario("Operation FULL FART – June allocation", "June", materials, products, orders, supply);
+        return new Scenario("Operation FULL FART – baseline month", "Baseline month", materials, products, orders, supply);
     }
 
     private static IReadOnlyDictionary<Material, decimal> Bom(decimal cf = 0, decimal el = 0, decimal timber = 0)
