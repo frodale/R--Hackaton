@@ -3,6 +3,7 @@
 @inject IScenarioRepository Repository
 @inject IAllocationEngine Engine
 @inject IForecastEngine ForecastEngine
+@inject IJSRuntime JS
 
 <PageTitle>RØ Material Allocation</PageTitle>
 
@@ -56,74 +57,6 @@
     </aside>
 
     <section class="content">
-        @* ---------- Forecast ---------- *@
-        <div class="panel">
-            <div class="panel-head">
-                <h2>Forecast @forecast.Months[0].Label – @forecast.Months[^1].Label</h2>
-                <ul class="legend">
-                    <li><span class="swatch fill-motion"></span>Motion delivered</li>
-                    <li><span class="swatch fill-marine"></span>Marine delivered</li>
-                    <li><span class="swatch fill-backlog"></span>Pushed to backlog</li>
-                    <li><span class="swatch fill-lost"></span>Lost (cancelled)</li>
-                    <li><span class="swatch swatch-demand"></span>New orders</li>
-                </ul>
-            </div>
-            <p class="headline">
-                With <strong>@Fmt.Name(strategy)</strong>, RØ delivers <strong>@Fmt.Nok(forecast.Revenue)</strong> over 13 months
-                and loses <strong class="risk-text">@Fmt.Nok(forecast.Cancelled)</strong> to cancelled orders.
-                The backlog peaks at <strong>@Fmt.Nok(PeakMonth.CarriedRevenue)</strong> in @PeakMonth.Label.
-                @if (forecast.MonthsWithSafetyGaps > 0)
-                {
-                    <span class="risk-text">Rescue equipment is short in @forecast.MonthsWithSafetyGaps of 13 months.</span>
-                }
-                else
-                {
-                    <span class="ok-text">Rescue equipment is covered every month.</span>
-                }
-            </p>
-            <ForecastRevenueChart Months="forecast.Months" Events="forecast.Events" Selected="selectedMonth" OnSelect="SelectMonth" />
-            <ol class="events">
-                @foreach (var e in forecast.Events)
-                {
-                    <li><button type="button" @onclick="() => SelectMonth(e.MonthIndex)"><strong>@forecast.Months[e.MonthIndex].Label</strong> @e.Text</button></li>
-                }
-            </ol>
-        </div>
-
-        <div class="panel">
-            <div class="panel-head">
-                <h2>Month by month</h2>
-                <span class="muted small">Demand includes backlog carried from earlier months. Click a month for details.</span>
-            </div>
-            <CoverageHeatmap Months="forecast.Months" Selected="selectedMonth" OnSelect="SelectMonth" />
-        </div>
-
-        <div>
-            <div class="panel">
-                <div class="panel-head">
-                    <h2>Strategies over 13 months</h2>
-                    <span class="muted small">Same supply plan, same scenario settings. Click to switch.</span>
-                </div>
-                <div class="year-compare">
-                    @foreach (var f in strategyForecasts)
-                    {
-                        var s = f.Settings.Strategy;
-                        <button type="button" class="year-row @(s == strategy ? "selected" : "")" @onclick="() => SetStrategy(s)">
-                            <span class="strategy-name">@Fmt.Name(s)</span>
-                            <span class="year-figures">
-                                <span><small>Delivered</small><strong>@Fmt.Nok(f.Revenue)</strong></span>
-                                <span><small>Lost</small><strong class="risk-text">@Fmt.Nok(f.Cancelled)</strong></span>
-                                <span><small>Backlog Dec 27</small><strong>@Fmt.Nok(f.EndBacklog)</strong></span>
-                            </span>
-                            <span class="chip @(f.MonthsWithSafetyGaps == 0 ? "ok" : "risk")">
-                                @(f.MonthsWithSafetyGaps == 0 ? "Safety covered all year" : $"Safety short {f.MonthsWithSafetyGaps} months")
-                            </span>
-                        </button>
-                    }
-                </div>
-            </div>
-        </div>
-
         @* ---------- Selected month ---------- *@
         <div class="month-head">
             <button type="button" class="btn btn-ghost" disabled="@(selectedMonth == 0)" @onclick="() => SelectMonth(selectedMonth - 1)" aria-label="Previous month">‹</button>
@@ -266,6 +199,74 @@
                 </table>
             </div>
         </div>
+        @* ---------- Forecast ---------- *@
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Forecast @forecast.Months[0].Label – @forecast.Months[^1].Label</h2>
+                <ul class="legend">
+                    <li><span class="swatch fill-motion"></span>Motion delivered</li>
+                    <li><span class="swatch fill-marine"></span>Marine delivered</li>
+                    <li><span class="swatch fill-backlog"></span>Pushed to backlog</li>
+                    <li><span class="swatch fill-lost"></span>Lost (cancelled)</li>
+                    <li><span class="swatch swatch-demand"></span>New orders</li>
+                </ul>
+            </div>
+            <p class="headline">
+                With <strong>@Fmt.Name(strategy)</strong>, RØ delivers <strong>@Fmt.Nok(forecast.Revenue)</strong> over 13 months
+                and loses <strong class="risk-text">@Fmt.Nok(forecast.Cancelled)</strong> to cancelled orders.
+                The backlog peaks at <strong>@Fmt.Nok(PeakMonth.CarriedRevenue)</strong> in @PeakMonth.Label.
+                @if (forecast.MonthsWithSafetyGaps > 0)
+                {
+                    <span class="risk-text">Rescue equipment is short in @forecast.MonthsWithSafetyGaps of 13 months.</span>
+                }
+                else
+                {
+                    <span class="ok-text">Rescue equipment is covered every month.</span>
+                }
+            </p>
+            <ForecastRevenueChart Months="forecast.Months" Events="forecast.Events" Selected="selectedMonth" OnSelect="OpenMonth" />
+            <ol class="events">
+                @foreach (var e in forecast.Events)
+                {
+                    <li><button type="button" @onclick="() => OpenMonth(e.MonthIndex)"><strong>@forecast.Months[e.MonthIndex].Label</strong> @e.Text</button></li>
+                }
+            </ol>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Month by month</h2>
+                <span class="muted small">Demand includes backlog carried from earlier months. Click a month for details.</span>
+            </div>
+            <CoverageHeatmap Months="forecast.Months" Selected="selectedMonth" OnSelect="OpenMonth" />
+        </div>
+
+        <div>
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Strategies over 13 months</h2>
+                    <span class="muted small">Same supply plan, same scenario settings. Click to switch.</span>
+                </div>
+                <div class="year-compare">
+                    @foreach (var f in strategyForecasts)
+                    {
+                        var s = f.Settings.Strategy;
+                        <button type="button" class="year-row @(s == strategy ? "selected" : "")" @onclick="() => SetStrategy(s)">
+                            <span class="strategy-name">@Fmt.Name(s)</span>
+                            <span class="year-figures">
+                                <span><small>Delivered</small><strong>@Fmt.Nok(f.Revenue)</strong></span>
+                                <span><small>Lost</small><strong class="risk-text">@Fmt.Nok(f.Cancelled)</strong></span>
+                                <span><small>Backlog Dec 27</small><strong>@Fmt.Nok(f.EndBacklog)</strong></span>
+                            </span>
+                            <span class="chip @(f.MonthsWithSafetyGaps == 0 ? "ok" : "risk")">
+                                @(f.MonthsWithSafetyGaps == 0 ? "Safety covered all year" : $"Safety short {f.MonthsWithSafetyGaps} months")
+                            </span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
     </section>
 </main>
 
@@ -319,6 +320,20 @@
     {
         selectedMonth = Math.Clamp(index, 0, forecast.Months.Count - 1);
         ShowMonth();
+    }
+
+    /// <summary>Used by the forecast at the bottom: open the month and scroll up to its detail.</summary>
+    private async Task OpenMonth(int index)
+    {
+        SelectMonth(index);
+        try
+        {
+            await JS.InvokeVoidAsync("scrollTo", new { top = 0, behavior = "smooth" });
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser went away; scrolling is only a convenience.
+        }
     }
 
     private void SetStrategy(AllocationStrategy s)
